@@ -18,7 +18,6 @@ export default async function DashboardPage() {
   const readyCount = deployments.filter(d => d.state === 'READY').length
   const failedCount = deployments.filter(d => d.state === 'ERROR' || d.state === 'CANCELED').length
 
-  // Avg build time: Vercel gives createdAt and readyAt
   const buildTimes = deployments
     .filter(d => d.readyAt && d.createdAt)
     .slice(0, 10)
@@ -28,7 +27,6 @@ export default async function DashboardPage() {
     ? Math.round(buildTimes.reduce((a,b) => a+b, 0) / buildTimes.length) 
     : 0
 
-  // Fake uptime = % of READY deploys
   const uptime = deployments.length 
     ? ((readyCount / deployments.length) * 100).toFixed(2) 
     : 100
