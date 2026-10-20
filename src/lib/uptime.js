@@ -1,4 +1,4 @@
-import { createAdminClient } from './client.js'
+import { createAdminClient } from './supabase/client'
 
 export async function checkAllMonitors() {
   const supabase = createAdminClient()
