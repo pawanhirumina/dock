@@ -19,6 +19,7 @@ const items = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Deployments", url: "/admin/dashboard/deployments", icon:  ChartColumn},
   { title: "Uptime", url: "/admin/dashboard/uptime", icon: Clock },
+  { title: "Gallery", url: "/admin/dashboard/gallery", icon: Image },
 ]
 
 function LogoutButton() {
