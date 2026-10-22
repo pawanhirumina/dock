@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from './components/ui/label'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -19,11 +20,17 @@ export default function Login() {
 
   return (
     <div className="h-screen  flex items-center justify-center">
-      <div className="w-80 flex flex-col gap-3">
-        <h1 className="text-1xl text-center font-bold">Login to Dev Board</h1>
-        <Input value={email} onChange={e=>setEmail(e.target.value)} placeholder="admin email"  />
+      <div className="w-80 flex flex-col gap-6">
+        <h1 className="text-2xl text-center font-bold">Login</h1>
+        <div className='flex flex-col gap-1'>
+        <Label>Email</Label>
+        <Input value={email}  onChange={e=>setEmail(e.target.value)} placeholder="admin email"  />
+        </div>
+        <div className='flex flex-col gap-1'>
+        <Label>Password</Label>
         <Input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="password"  />
-        <Button onClick={login}>Login</Button>
+        </div>
+        <Button className="cursor-pointer" onClick={login}>Login</Button>
       </div>
     </div>
   )

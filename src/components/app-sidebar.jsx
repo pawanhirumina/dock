@@ -13,13 +13,15 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar"
-import { LayoutDashboard, Image, LogOut, Clock, ChartColumn } from "lucide-react"
+import { LayoutDashboard, Image, LogOut, Clock, Rocket, KeyRound, Users } from "lucide-react"
 
 const items = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
-  { title: "Deployments", url: "/admin/dashboard/deployments", icon:  ChartColumn},
+  { title: "Deployments", url: "/admin/dashboard/deployments", icon:  Rocket},
   { title: "Uptime", url: "/admin/dashboard/uptime", icon: Clock },
   { title: "Gallery", url: "/admin/dashboard/gallery", icon: Image },
+  { title: "Env Vault", url: "/admin/dashboard/envvault", icon: KeyRound },
+  { title: "Users", url: "/admin/dashboard/users", icon: Users },
 ]
 
 function LogoutButton() {
@@ -44,7 +46,7 @@ export function AppSidebar() {
   return (
     <Sidebar className="bg-black border-zinc-800">
       <SidebarHeader className="p-4">
-        <h1 className="font-bold text-white">Dev Board</h1>
+        <h1 className="font-bold text-white">Dock</h1>
       </SidebarHeader>
 
       <SidebarContent>

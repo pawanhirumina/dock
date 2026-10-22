@@ -81,8 +81,7 @@ export default function DashboardPage() {
     <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold">Image Manager</h1>
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <h1 className="text-2xl font-bold">Gallery</h1>
         </div>
         {/* FIX 1: Button does NOT wrap another button - use ref */}
         <div>
@@ -147,7 +146,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <Badge variant="default">READY</Badge>
+                <Badge variant="default">Ready</Badge>
 
                 {/* FIX 2: No nested button - TooltipTrigger asChild must wrap only ONE Button, and Button must not be inside another button */}
                 <Tooltip>
