@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { v2 as cloudinary } from 'cloudinary'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/client'
 
 cloudinary.config({
@@ -10,18 +12,28 @@ cloudinary.config({
 })
 
 export async function POST(req) {
+
+  const cookieStore = await cookies()
+  const supabaseAuth = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    { cookies: { getAll: () => cookieStore.getAll() } }
+  )
+  const { data: { user } } = await supabaseAuth.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const { id, public_id } = await req.json()
-    console.log('Deleting:', id, public_id)
+    if (!id || !public_id) {
+      return NextResponse.json({ error: 'Missing id or public_id' }, { status: 400 })
+    }
 
-    // 1. Delete from Cloudinary
     const cloudResult = await cloudinary.uploader.destroy(public_id)
-    console.log('Cloudinary delete:', cloudResult)
 
-    // 2. Delete from Supabase
     const supabase = createAdminClient()
     const { error } = await supabase.from('images').delete().eq('id', id)
-    
     if (error) throw error
 
     return NextResponse.json({ status: "ok", cloudinary: cloudResult })

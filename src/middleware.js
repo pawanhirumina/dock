@@ -1,3 +1,4 @@
+// src/middleware.js
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 
@@ -22,12 +23,24 @@ export async function middleware(request) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
+  const path = request.nextUrl.pathname
 
-  if (!user && request.nextUrl.pathname.startsWith('/admin') && !request.nextUrl.pathname.startsWith('/admin/login')) {
-    return NextResponse.redirect(new URL('/admin/login', request.url))
+  const isLoginPage = path === '/'
+  const isProtectedAdmin = path.startsWith('/admin')
+  const isProtectedApi = path.startsWith('/api/admin') || 
+                         path.startsWith('/api/delete') || 
+                         path.startsWith('/api/upload') || 
+                         path === '/api/deployments'
+
+                         
+  if (!user && (isProtectedAdmin || isProtectedApi)) {
+    if (isProtectedApi) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    return NextResponse.redirect(new URL('/', request.url))
   }
 
-  if (user && request.nextUrl.pathname === '/admin/login') {
+  if (user && isLoginPage) {
     return NextResponse.redirect(new URL('/admin/dashboard', request.url))
   }
 
@@ -35,5 +48,12 @@ export async function middleware(request) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*']
+  matcher: [
+    '/admin/:path*',
+    '/admin',
+    '/api/admin/:path*',
+    '/api/delete',
+    '/api/upload',
+    '/api/deployments'
+  ]
 }
