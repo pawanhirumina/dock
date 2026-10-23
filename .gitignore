@@ -28,3 +28,10 @@ out
 .env
 
 *.sh
+
+.claude/
+.agents/
+.grok
+.cursor/
+.windsurf/
+*.local

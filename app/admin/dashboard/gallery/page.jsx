@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Rocket, Clock, Image as ImageIcon, Trash2, Upload, Link as LinkIcon, Copy, Check } from "lucide-react"
+import { Rocket, Clock, Image as ImageIcon, Trash2, Upload, Copy, Check } from "lucide-react"
 import { createClient } from '@/lib/supabase/client'
 import { toast } from "sonner"
+import ConfirmDialog from "@/components/ui/confirm-dialog"
 
 function timeAgo(ms) {
   const s = Math.floor((Date.now() - ms) / 1000)
@@ -24,26 +25,40 @@ export default function DashboardPage() {
   const [copiedId, setCopiedId] = useState(null)
   const fileInputRef = useRef(null)
 
+  // fix: proper state for dialog
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [imageToDelete, setImageToDelete] = useState(null)
+  const [dragActive, setDragActive] = useState(false)
+
   useEffect(() => {
     const fetchImages = async () => {
       const { data } = await supabase.from('images').select('*').order('created_at', { ascending: false })
       setImages(data || [])
     }
     fetchImages()
-    const channel = supabase
-      .channel('images-realtime')
+    const channel = supabase.channel('images-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'images' }, (payload) => {
         if (payload.eventType === 'INSERT') setImages((prev) => [payload.new, ...prev])
         if (payload.eventType === 'DELETE') setImages((prev) => prev.filter((img) => img.id !== payload.old.id))
         if (payload.eventType === 'UPDATE') setImages((prev) => prev.map((img) => img.id === payload.new.id ? payload.new : img))
-      })
-      .subscribe()
+      }).subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  const handleUpload = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
+  const handleDrag = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") setDragActive(true)
+    if (e.type === "dragleave") setDragActive(false)
+  }
+
+  const handleDrop = async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    setDragActive(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) await uploadFile(file)
+  }
+
+  const uploadFile = async (file) => {
     setUploading(true)
     const fd = new FormData()
     fd.append('file', file)
@@ -51,18 +66,32 @@ export default function DashboardPage() {
     if (res.ok) toast.success("Image uploaded")
     else toast.error("Upload failed")
     setUploading(false)
+  }
+
+  const handleUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    await uploadFile(file)
     e.target.value = ''
   }
 
-  const handleDelete = async (img) => {
-    if (!confirm('Delete from Cloudinary and Supabase?')) return
+  // NEW: open dialog instead of window.confirm
+  const handleDeleteClick = (img) => {
+    setImageToDelete(img)
+    setConfirmOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!imageToDelete) return
     const res = await fetch('/api/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: img.id, public_id: img.public_id })
+      body: JSON.stringify({ id: imageToDelete.id, public_id: imageToDelete.public_id })
     })
     if (res.ok) toast.success("Deleted")
     else toast.error("Delete failed")
+    setConfirmOpen(false)
+    setImageToDelete(null)
   }
 
   const handleCopy = async (img) => {
@@ -76,14 +105,23 @@ export default function DashboardPage() {
 
   return (
     <TooltipProvider>
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-6 min-h-screen relative" onDragEnter={handleDrag} onDragOver={handleDrag} onDragLeave={handleDrag} onDrop={handleDrop}>
+        {dragActive && (
+          <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
+            <div className="border-2 border-dashed border-white rounded-2xl p-12 bg-white/10 flex flex-col items-center gap-4">
+              <Upload className="w-12 h-12 text-white" />
+              <p className="text-white text-xl font-bold">Drop your image here</p>
+              <p className="text-white/70 text-sm">Auto-upload to Cloudinary</p>
+            </div>
+          </div>
+        )}
+
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">Gallery</h1>
           <div>
             <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleUpload} disabled={uploading} />
             <Button variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
-              <Upload className="w-4 h-4 mr-2" />
-              {uploading ? 'Uploading...' : 'Upload Image'}
+              <Upload className="w-4 h-4 mr-2" /> {uploading ? 'Uploading...' : 'Upload Image'}
             </Button>
           </div>
         </div>
@@ -98,48 +136,37 @@ export default function DashboardPage() {
           <CardHeader><CardTitle>All Images ({images.length})</CardTitle></CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {images.length === 0 && <p className="text-sm text-muted-foreground">No images yet. Upload one.</p>}
+              {images.length === 0 && <p className="text-sm text-muted-foreground">No images yet. Drag & drop anywhere to upload.</p>}
               {images.map((img) => (
                 <div key={img.id} className="flex justify-between items-center border-b pb-3 last:border-0 gap-4">
                   <div className="flex gap-3 items-center min-w-0">
                     <img src={img.secure_url} className="w-14 h-14 object-cover rounded-md border" alt={img.public_id} />
                     <div className="min-w-0">
                       <p className="font-medium truncate">{img.public_id}</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 truncate"><LinkIcon className="w-3 h-3" /> {new Date(img.created_at).toLocaleString()} - {timeAgo(new Date(img.created_at).getTime())}</p>
+                      <p className="text-xs text-muted-foreground truncate">{new Date(img.created_at).toLocaleString()} - {timeAgo(new Date(img.created_at).getTime())}</p>
                       <p className="text-xs text-muted-foreground truncate">{img.secure_url}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Badge>Ready</Badge>
-
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button variant="ghost" size="icon" type="button" onClick={() => handleCopy(img)}>
-                            {copiedId === img.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                          </Button>
-                        }
-                      />
-                      <TooltipContent><p>{copiedId === img.id ? 'Copied' : 'Copy link'}</p></TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button variant="ghost" size="icon" type="button" onClick={() => handleDelete(img)}>
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        }
-                      />
-                      <TooltipContent><p>Delete</p></TooltipContent>
-                    </Tooltip>
-
+                    <Badge className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">Ready</Badge>
+                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => handleCopy(img)}>{copiedId === img.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}</Button></TooltipTrigger><TooltipContent>Copy link</TooltipContent></Tooltip>
+                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => handleDeleteClick(img)}><Trash2 className="w-4 h-4 text-destructive" /></Button></TooltipTrigger><TooltipContent>Delete</TooltipContent></Tooltip>
                   </div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
+
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Delete image?"
+          description={`Delete ${imageToDelete?.public_id}? This will remove it from Cloudinary and Supabase. This cannot be undone.`}
+          onConfirm={confirmDelete}
+          confirmText="Delete"
+          variant="destructive"
+        />
       </div>
     </TooltipProvider>
   )
