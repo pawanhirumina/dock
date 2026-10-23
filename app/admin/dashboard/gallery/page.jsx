@@ -105,12 +105,12 @@ export default function DashboardPage() {
                     <img src={img.secure_url} className="w-14 h-14 object-cover rounded-md border" alt={img.public_id} />
                     <div className="min-w-0">
                       <p className="font-medium truncate">{img.public_id}</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 truncate"><LinkIcon className="w-3 h-3" /> {new Date(img.created_at).toLocaleString()} - {timeAgo(new Date(img.created_at).getTime())}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">{new Date(img.created_at).toLocaleString()} - {timeAgo(new Date(img.created_at).getTime())}</p>
                       <p className="text-xs text-muted-foreground truncate">{img.secure_url}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Badge>Ready</Badge>
+                    <Badge className="bg-green-50 text-green-700  dark:bg-green-950 dark:text-green-300">Ready</Badge>
 
                     <Tooltip>
                       <TooltipTrigger

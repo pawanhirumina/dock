@@ -132,8 +132,9 @@ export default function UsersPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  {u.email_confirmed_at ? <Badge variant="default">Verified</Badge> : <Badge variant="destructive">Unverified</Badge>}
-                  <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => handleDelete(u)} type="button"><Trash2 className="w-4 h-4 text-destructive" /></Button></TooltipTrigger><TooltipContent><p>Delete</p></TooltipContent></Tooltip>
+                  {u.email_confirmed_at ? <Badge variant="default" className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" >Verified</Badge> : <Badge variant="destructive">Unverified</Badge>}
+                  <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => handleDelete(u)} type="button"></Button>
+                  </TooltipTrigger><TooltipContent><p>Delete</p></TooltipContent></Tooltip>
                 </div>
               </div>
             ))}

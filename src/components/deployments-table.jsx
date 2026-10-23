@@ -3,14 +3,31 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Rocket, Clock, Activity, AlertTriangle, RefreshCw } from "lucide-react"
+import { Rocket, Clock, Activity, AlertTriangle, RefreshCw, GitCommit, FolderGit2 } from "lucide-react"
 
-function timeAgo(ms) {
+function timeAgo(input) {
+  const ms = typeof input === 'number' ? input : new Date(input).getTime()
   const s = Math.floor((Date.now() - ms) / 1000)
   if (s < 60) return `${s}s ago`
   if (s < 3600) return `${Math.floor(s/60)}m ago`
   if (s < 86400) return `${Math.floor(s/3600)}h ago`
   return `${Math.floor(s/86400)}d ago`
+}
+
+const stateStyles = {
+  READY: 'bg-green-50 text-green-700  dark:bg-green-950 dark:text-green-300',
+  BUILDING: 'bg-yellow-50 text-yellow-700  dark:bg-yellow-950 dark:text-yellow-300',
+  QUEUED: 'bg-yellow-50 text-yellow-700  dark:bg-yellow-950 dark:text-yellow-300',
+  ERROR: 'bg-red-50 text-red-700  dark:bg-red-950 dark:text-red-300',
+  CANCELED: 'bg-zinc-100 text-zinc-700  dark:bg-zinc-900 dark:text-zinc-300',
+}
+
+const stateVariant = {
+  READY: 'default',
+  BUILDING: 'secondary',
+  QUEUED: 'secondary',
+  ERROR: 'destructive',
+  CANCELED: 'outline',
 }
 
 export function useDeployments(pollInterval = 10000) {
@@ -52,9 +69,9 @@ export function DeploymentStats() {
   const last = deployments[0]
   const readyCount = deployments.filter(d => d.state === 'READY').length
   const failedCount = deployments.filter(d => d.state === 'ERROR' || d.state === 'CANCELED').length
-  const buildTimes = deployments.filter(d => d.readyAt && d.createdAt).slice(0, 10).map(d => (d.readyAt - d.createdAt) / 1000)
+  const buildTimes = deployments.filter(d => d.readyAt && d.createdAt).slice(0, 10).map(d => (new Date(d.readyAt) - new Date(d.createdAt)) / 1000)
   const avgBuild = buildTimes.length ? Math.round(buildTimes.reduce((a,b) => a+b, 0) / buildTimes.length) : 0
-  const uptime = deployments.length ? ((readyCount / deployments.length) * 100).toFixed(2) : 100
+  const uptime = deployments.length ? ((readyCount / deployments.length) * 100).toFixed(1) : '100'
 
   return (
     <>
@@ -92,12 +109,23 @@ export default function DeploymentsTable() {
         <div className="space-y-3">
           {deployments.length === 0 && !loading && <p className="text-sm text-muted-foreground">No deployments</p>}
           {deployments.map((d) => (
-           <div key={d.uid} className="flex justify-between border-b pb-3 last:border-0 gap-4">
+           <div key={d.uid} className="flex justify-between items-center border-b pb-3 last:border-0 gap-4">
             <div className="min-w-0">
-              <p className="font-medium truncate">{d.name} - {d.meta?.githubCommitMessage?.slice(0,50) || d.uid}</p>
+              <p className="font-medium truncate flex items-center gap-1.5">
+                <FolderGit2 size={14} className="shrink-0" />
+                <span className="truncate">{d.name}</span>
+                <span className="text-muted-foreground">-</span>
+                <GitCommit size={14} className="shrink-0" />
+                <span className="truncate font-normal text-sm">{d.meta?.githubCommitMessage?.slice(0,50) || d.uid.slice(0,7)}</span>
+              </p>
               <p className="text-xs text-muted-foreground truncate">{d.url} • {new Date(d.createdAt).toLocaleString()} • {timeAgo(d.createdAt)}</p>
             </div>
-            <Badge variant={d.state === 'READY' ? 'default' : d.state === 'BUILDING' ? 'secondary' : 'destructive'} className="h-fit shrink-0">{d.state}</Badge>
+            <Badge 
+              variant={stateVariant[d.state] || 'destructive'}
+              className={`shrink-0 border ${stateStyles[d.state] || stateStyles.ERROR}`}
+            >
+              {d.state}
+            </Badge>
           </div>
           ))}
         </div>
