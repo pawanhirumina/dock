@@ -5,7 +5,6 @@ import { cookies } from 'next/headers'
 
 export async function GET() {
   try {
-    // 1. AUTH - fix your pentest fail (was 200 without login)
     const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -31,6 +30,6 @@ export async function GET() {
 
   } catch (e) {
     console.error('GET /api/deployments failed:', e)
-    return NextResponse.json({ error: e.message }, { status: 500 })
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }

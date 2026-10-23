@@ -191,10 +191,8 @@ export default function UsersPage() {
                       </div>
                     </div>
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(u)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      <TooltipTrigger className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(u)}>
+                        <Trash2 className="h-4 w-4" />
                       </TooltipTrigger>
                       <TooltipContent>Delete user</TooltipContent>
                     </Tooltip>

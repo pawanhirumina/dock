@@ -66,7 +66,6 @@ export function useDeployments(pollInterval = 10000) {
 }
 
 function getLinks(d) {
-  // Vercel deployment URL - d.url is the live preview url
   const vercelUrl = d.url ? `https://${d.url}` : `https://vercel.com/dashboard`
   
   // GitHub commit URL
