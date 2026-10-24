@@ -1,26 +1,62 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  Activity,
+  AlertTriangle,
+  Clock,
+  ExternalLink,
+  GitCommit,
+  RefreshCw,
+  Rocket,
+  Search,
+  X,
+} from 'lucide-react'
+
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Rocket, Clock, Activity, AlertTriangle, RefreshCw, GitCommit, FolderGit2, ExternalLink } from "lucide-react"
-import { SiGithub } from "react-icons/si"
-import { FaCodeCommit } from "react-icons/fa6";
-function timeAgo(input) {
-  const ms = typeof input === 'number' ? input : new Date(input).getTime()
-  const s = Math.floor((Date.now() - ms) / 1000)
-  if (s < 60) return `${s}s ago`
-  if (s < 3600) return `${Math.floor(s/60)}m ago`
-  if (s < 86400) return `${Math.floor(s/3600)}h ago`
-  return `${Math.floor(s/86400)}d ago`
-}
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
-const stateStyles = {
-  READY: 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300',
-  BUILDING: 'bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300',
-  QUEUED: 'bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300',
-  ERROR: 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300',
-  CANCELED: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300',
+function timeAgo(input) {
+  if (!input) return '—'
+  const ms = typeof input === 'number' ? input : new Date(input).getTime()
+  if (Number.isNaN(ms)) return '—'
+  const seconds = Math.floor((Date.now() - ms) / 1000)
+  if (seconds < 60) return `${seconds}s ago`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+  return `${Math.floor(seconds / 86400)}d ago`
 }
 
 const stateVariant = {
@@ -31,166 +67,408 @@ const stateVariant = {
   CANCELED: 'outline',
 }
 
-export function useDeployments(pollInterval = 10000) {
-  const [deployments, setDeployments] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [lastUpdate, setLastUpdate] = useState(null)
+function getLinks(deployment) {
+  const vercelUrl = deployment.url
+    ? `https://${deployment.url}`
+    : 'https://vercel.com/dashboard'
 
-  const fetchDeployments = async () => {
-    try {
-      const res = await fetch('/api/deployments', { cache: 'no-store' })
-      const data = await res.json()
-      if (data.deployments) {
-        setDeployments(data.deployments)
-        setLastUpdate(Date.now())
-      }
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchDeployments()
-    const id = setInterval(fetchDeployments, pollInterval)
-    const onVis = () => { if (document.visibilityState === 'visible') fetchDeployments() }
-    document.addEventListener('visibilitychange', onVis)
-    return () => {
-      clearInterval(id)
-      document.removeEventListener('visibilitychange', onVis)
-    }
-  }, [pollInterval])
-
-  return { deployments, loading, lastUpdate, refresh: fetchDeployments }
-}
-
-function getLinks(d) {
-  const vercelUrl = d.url ? `https://${d.url}` : `https://vercel.com/dashboard`
-  
-  // GitHub commit URL
-  const org = d.meta?.githubCommitOrg || d.meta?.githubOrg
-  const repo = d.meta?.githubCommitRepo || d.meta?.githubRepo
-  const sha = d.meta?.githubCommitSha
-  const githubUrl = org && repo && sha 
-    ? `https://github.com/${org}/${repo}/commit/${sha}`
-    : org && repo
-    ? `https://github.com/${org}/${repo}`
+  const org = deployment.meta?.githubCommitOrg || deployment.meta?.githubOrg
+  const repo = deployment.meta?.githubCommitRepo || deployment.meta?.githubRepo
+  const sha = deployment.meta?.githubCommitSha
+  const githubUrl = org && repo
+    ? `https://github.com/${org}/${repo}${sha ? `/commit/${sha}` : ''}`
     : null
 
   return { vercelUrl, githubUrl, org, repo, sha }
 }
 
+function shortSha(deployment) {
+  return deployment.meta?.githubCommitSha?.slice(0, 7) || deployment.uid?.slice(0, 7) || '—'
+}
+
+export function useDeployments(pollInterval = 10000) {
+  const [deployments, setDeployments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState('')
+  const [lastUpdate, setLastUpdate] = useState(null)
+
+  const fetchDeployments = useCallback(async () => {
+    try {
+      const res = await fetch('/api/deployments', { cache: 'no-store' })
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to load deployments')
+      }
+      if (data.deployments) {
+        setDeployments(data.deployments)
+        setLastUpdate(Date.now())
+      }
+      setError('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load deployments')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true)
+    await fetchDeployments()
+    setRefreshing(false)
+  }, [fetchDeployments])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async initial fetch
+    fetchDeployments()
+    const id = setInterval(fetchDeployments, pollInterval)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchDeployments()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [fetchDeployments, pollInterval])
+
+  return { deployments, loading, refreshing, error, lastUpdate, refresh }
+}
+
+function StatCard({ title, value, description, icon: Icon, loading, destructive }) {
+  return (
+    <Card size="sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className={destructive ? 'size-4 text-destructive' : 'size-4 text-muted-foreground'} />
+      </CardHeader>
+      <CardContent className="flex flex-col gap-1">
+        {loading ? (
+          <Skeleton className="h-7 w-16" />
+        ) : (
+          <span className="text-2xl font-semibold tabular-nums">{value}</span>
+        )}
+        <p className="truncate text-xs text-muted-foreground">{description}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function DeploymentStats() {
-  const { deployments, lastUpdate, refresh, loading } = useDeployments()
+  const { deployments, loading } = useDeployments()
   const last = deployments[0]
-  const readyCount = deployments.filter(d => d.state === 'READY').length
-  const failedCount = deployments.filter(d => d.state === 'ERROR' || d.state === 'CANCELED').length
-  const buildTimes = deployments.filter(d => d.readyAt && d.createdAt).slice(0, 10).map(d => (new Date(d.readyAt) - new Date(d.createdAt)) / 1000)
-  const avgBuild = buildTimes.length ? Math.round(buildTimes.reduce((a,b) => a+b, 0) / buildTimes.length) : 0
-  const uptime = deployments.length ? ((readyCount / deployments.length) * 100).toFixed(1) : '100'
+  const readyCount = deployments.filter((d) => d.state === 'READY').length
+  const failedCount = deployments.filter(
+    (d) => d.state === 'ERROR' || d.state === 'CANCELED',
+  ).length
+  const buildTimes = deployments
+    .filter((d) => d.readyAt && d.createdAt)
+    .slice(0, 10)
+    .map((d) => (new Date(d.readyAt) - new Date(d.createdAt)) / 1000)
+  const avgBuild = buildTimes.length
+    ? Math.round(buildTimes.reduce((total, value) => total + value, 0) / buildTimes.length)
+    : 0
+  const successRate = deployments.length
+    ? ((readyCount / deployments.length) * 100).toFixed(1)
+    : '100.0'
 
   return (
-    <>
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Dev Overview</h1>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {lastUpdate && <span>Updated {timeAgo(lastUpdate)}</span>}
-          <Button variant="ghost" size="icon" onClick={refresh} disabled={loading}><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></Button>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">Last Deploy</CardTitle><Rocket className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{last ? timeAgo(last.createdAt) : '—'}</div><p className="text-xs text-muted-foreground truncate">{last?.name} • {last?.meta?.githubCommitSha?.slice(0,7) || last?.uid.slice(0,7)}</p></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">Uptime</CardTitle><Activity className="h-4 w-4 text-green-500" /></CardHeader><CardContent><div className="text-2xl font-bold">{uptime}%</div><p className="text-xs text-muted-foreground">{readyCount} / {deployments.length} successful</p></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">Avg Build</CardTitle><Clock className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{avgBuild}s</div><p className="text-xs text-muted-foreground">Last 10 deploys average</p></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium">Incidents</CardTitle><AlertTriangle className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{failedCount}</div><p className="text-xs text-muted-foreground">{failedCount === 0 ? 'No active issues' : 'Failed deploys'}</p></CardContent></Card>
-      </div>
-    </>
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <StatCard
+        title="Last deploy"
+        value={last ? timeAgo(last.createdAt) : '—'}
+        description={last ? `${last.name} • ${shortSha(last)}` : 'No deployments yet'}
+        icon={Rocket}
+        loading={loading}
+      />
+      <StatCard
+        title="Success rate"
+        value={`${successRate}%`}
+        description={`${readyCount} of ${deployments.length} deployments ready`}
+        icon={Activity}
+        loading={loading}
+      />
+      <StatCard
+        title="Avg. build"
+        value={`${avgBuild}s`}
+        description="Last 10 deployments"
+        icon={Clock}
+        loading={loading}
+      />
+      <StatCard
+        title="Failed"
+        value={failedCount}
+        description={failedCount === 0 ? 'No failed deploys' : 'Error or canceled'}
+        icon={AlertTriangle}
+        loading={loading}
+        destructive={failedCount > 0}
+      />
+    </div>
   )
 }
 
 export default function DeploymentsTable() {
-  const { deployments, loading, lastUpdate, refresh } = useDeployments()
+  const { deployments, loading, refreshing, error, lastUpdate, refresh } =
+    useDeployments()
+  const [search, setSearch] = useState('')
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) return deployments
+    return deployments.filter((deployment) =>
+      [
+        deployment.name,
+        deployment.state,
+        deployment.meta?.githubCommitMessage,
+        deployment.meta?.githubCommitSha,
+        deployment.url,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query)),
+    )
+  }, [deployments, search])
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>All Deployments ({deployments.length}) {loading && <span className="text-xs font-normal text-muted-foreground ml-2">syncing...</span>}</CardTitle>
-        <div className="flex items-center gap-2">
-          {lastUpdate && <span className="text-xs text-muted-foreground">{timeAgo(lastUpdate)}</span>}
-          <Button variant="ghost" size="icon" onClick={refresh}><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></Button>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <CardTitle>Deployments</CardTitle>
+          <CardDescription>
+            {search
+              ? `${filtered.length} of ${deployments.length} deployments`
+              : `${deployments.length} deployments across your projects`}
+          </CardDescription>
+        </div>
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <InputGroup className="w-full sm:w-64">
+            <InputGroupAddon>
+              <Search />
+            </InputGroupAddon>
+            <InputGroupInput
+              placeholder="Search deployments..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              aria-label="Search deployments"
+            />
+            {search && (
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  size="icon-xs"
+                  aria-label="Clear search"
+                  onClick={() => setSearch('')}
+                >
+                  <X />
+                </InputGroupButton>
+              </InputGroupAddon>
+            )}
+          </InputGroup>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={refresh}
+            disabled={refreshing}
+            aria-label="Refresh deployments"
+          >
+            {refreshing ? <Spinner /> : <RefreshCw />}
+          </Button>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-1">
-          {deployments.length === 0 && !loading && <p className="text-sm text-muted-foreground">No deployments</p>}
-          {deployments.map((d) => {
-            const { vercelUrl, githubUrl, org, repo, sha } = getLinks(d)
-            return (
-              <div key={d.uid} className="group flex justify-between items-center py-3 gap-4 hover:bg-muted/40 -mx-2 px-2 rounded-md transition-colors">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* Vercel Deployment Link */}
-                    <a 
-                      href={vercelUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="font-medium flex items-center gap-1.5 hover:underline"
-                    >
-                      <FaCodeCommit  size={14} className="shrink-0" />
-                      <span className="truncate">{d.name}</span>
-                      <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </a>
-                    <span className="text-muted-foreground">-</span>
-                    {/* GitHub Commit Link */}
-                    {githubUrl ? (
-                      <a 
-                        href={githubUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-sm hover:underline"
-                        title={sha ? `View commit ${sha} on GitHub` : `View repo ${org}/${repo}`}
+
+      <CardContent className="flex flex-col gap-4 p-0">
+        {error && (
+          <div className="px-4">
+            <Alert variant="destructive">
+              <AlertTriangle />
+              <AlertTitle>Could not refresh deployments</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          </div>
+        )}
+
+        {loading ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-4">Deployment</TableHead>
+                <TableHead>Commit</TableHead>
+                <TableHead>State</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="pr-4">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, index) => (
+                <TableRow key={index}>
+                  <TableCell className="pl-4">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="size-9 rounded-lg" />
+                      <div className="flex flex-col gap-1.5">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-44" />
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                  <TableCell className="pr-4"><Skeleton className="ml-auto size-8" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : filtered.length === 0 ? (
+          <div className="p-6">
+            <Empty className="border border-dashed">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Rocket />
+                </EmptyMedia>
+                <EmptyTitle>
+                  {search ? 'No matching deployments' : 'No deployments yet'}
+                </EmptyTitle>
+                <EmptyDescription>
+                  {search
+                    ? `Nothing matches “${search}”. Try a different search.`
+                    : 'Deployments will appear here once Vercel reports a build.'}
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </div>
+        ) : (
+          <Table>
+            <TableCaption className="sr-only">
+              Vercel deployments and their build status
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-4">Deployment</TableHead>
+                <TableHead>Commit</TableHead>
+                <TableHead>State</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="pr-4">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((deployment) => {
+                const { vercelUrl, githubUrl, org, repo, sha } = getLinks(deployment)
+
+                return (
+                  <TableRow key={deployment.uid}>
+                    <TableCell className="pl-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
+                          <Rocket className="size-4" />
+                        </div>
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <a
+                            href={vercelUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="truncate text-sm font-medium hover:underline"
+                          >
+                            {deployment.name}
+                          </a>
+                          <a
+                            href={vercelUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="max-w-[32ch] truncate text-xs text-muted-foreground hover:text-foreground hover:underline"
+                          >
+                            {deployment.url}
+                          </a>
+                        </div>
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        {githubUrl ? (
+                          <a
+                            href={githubUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex max-w-[38ch] items-center gap-1.5 truncate text-sm hover:underline"
+                            title={sha ? `View commit ${sha} on GitHub` : `View ${org}/${repo} on GitHub`}
+                          >
+                            <GitCommit className="size-3.5 shrink-0 text-muted-foreground" />
+                            <span className="truncate">
+                              {deployment.meta?.githubCommitMessage?.slice(0, 60) ||
+                                sha?.slice(0, 7) ||
+                                shortSha(deployment)}
+                            </span>
+                          </a>
+                        ) : (
+                          <span className="flex max-w-[38ch] items-center gap-1.5 truncate text-sm text-muted-foreground">
+                            <GitCommit className="size-3.5 shrink-0" />
+                            <span className="truncate">
+                              {deployment.meta?.githubCommitMessage?.slice(0, 60) ||
+                                shortSha(deployment)}
+                            </span>
+                          </span>
+                        )}
+                        {sha && (
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {sha.slice(0, 7)}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      <Badge variant={stateVariant[deployment.state] || 'outline'}>
+                        <span className="size-1.5 rounded-full bg-current" />
+                        {deployment.state}
+                      </Badge>
+                    </TableCell>
+
+                    <TableCell>
+                      <span
+                        className="text-xs text-muted-foreground"
+                        title={new Date(deployment.createdAt).toLocaleString()}
                       >
-                        <SiGithub size={14} className="shrink-0" />
-                        <span className="truncate font-normal">{d.meta?.githubCommitMessage?.slice(0,50) || sha?.slice(0,7) || d.uid.slice(0,7)}</span>
-                      </a>
-                    ) : (
-                      <span className="flex items-center gap-1.5 text-sm">
-                        <SiGithub size={14} className="shrink-0" />
-                        <span className="truncate font-normal text-sm">{d.meta?.githubCommitMessage?.slice(0,50) || d.uid.slice(0,7)}</span>
+                        {timeAgo(deployment.createdAt)}
                       </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <a href={vercelUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-foreground hover:underline truncate">
-                      {d.url}
-                    </a>
-                    <span className="text-xs text-muted-foreground">•</span>
-                    <span className="text-xs text-muted-foreground truncate">{new Date(d.createdAt).toLocaleString()} • {timeAgo(d.createdAt)}</span>
-                    {sha && (
-                      <>
-                        <span className="text-xs text-muted-foreground">•</span>
-                        <a href={githubUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded hover:bg-muted/80">
-                          {sha.slice(0,7)}
-                        </a>
-                      </>
-                    )}
-                  </div>
-                </div>
-                {/* Click badge to go to Vercel */}
-                <a href={vercelUrl} target="_blank" rel="noopener noreferrer">
-                  <Badge 
-                    variant={stateVariant[d.state] || 'destructive'}
-                    className={`shrink-0 border cursor-pointer hover:opacity-80 transition-opacity ${stateStyles[d.state] || stateStyles.ERROR}`}
-                  >
-                    {d.state}
-                  </Badge>
-                </a>
-              </div>
-            )
-          })}
-        </div>
+                    </TableCell>
+
+                    <TableCell className="pr-4">
+                      <div className="flex items-center justify-end gap-1">
+                        {githubUrl && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Open commit on GitHub"
+                            render={<a href={githubUrl} target="_blank" rel="noopener noreferrer" />}
+                          >
+                            <GitCommit />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="Open deployment on Vercel"
+                          render={<a href={vercelUrl} target="_blank" rel="noopener noreferrer" />}
+                        >
+                          <ExternalLink />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        )}
+
+        {lastUpdate && (
+          <p className="px-4 pb-4 text-xs text-muted-foreground">
+            Last synced {timeAgo(lastUpdate)}
+          </p>
+        )}
       </CardContent>
     </Card>
   )

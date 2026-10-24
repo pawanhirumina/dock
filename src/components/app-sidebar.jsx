@@ -1,111 +1,127 @@
 "use client"
+
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { createClient } from '@/lib/supabase/client'
-import { SiGithub, SiVercel, SiSupabase, SiCloudinary, SiNextdotjs } from "react-icons/si"
+import {
+  Clock,
+  Image as ImageIcon,
+  KeyRound,
+  LayoutDashboard,
+  LogOut,
+  Rocket,
+  Terminal,
+  Users,
+} from "lucide-react"
+
+import { createClient } from "@/lib/supabase/client"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarHeader,
-  SidebarFooter,
+  SidebarSeparator,
 } from "@/components/ui/sidebar"
-import { 
-  LayoutDashboard, 
-  Image as ImageIcon, 
-  LogOut, 
-  Clock, 
-  Rocket, 
-  KeyRound, 
-  Users,
-  Server,
-  Settings,
-  Shield,
-  Inbox
-} from "lucide-react"
-import { Badge } from "./ui/badge"
-
 
 const navGroups = [
   {
     label: "Overview",
     items: [
       { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
-    ]
+    ],
   },
   {
     label: "Deployments",
     items: [
       { title: "Deployments", url: "/admin/dashboard/deployments", icon: Rocket },
       { title: "Uptime", url: "/admin/dashboard/uptime", icon: Clock },
-    ]
+    ],
   },
   {
     label: "Hosting & Vault",
     items: [
-      { title: "Gallery", url: "/admin/dashboard/gallery", icon: SiCloudinary },
+      { title: "Gallery", url: "/admin/dashboard/gallery", icon: ImageIcon },
       { title: "Env Vault", url: "/admin/dashboard/envvault", icon: KeyRound },
-    ]
+    ],
   },
   {
     label: "Management",
     items: [
       { title: "Users", url: "/admin/dashboard/users", icon: Users },
-    ]
-  }
+    ],
+  },
 ]
 
 function LogoutButton() {
   const router = useRouter()
+
   async function logout() {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push('/')
-    router.refresh() 
+    router.push("/")
+    router.refresh()
   }
+
   return (
-    <SidebarMenuButton onClick={logout} className="text-zinc-400 hover:text-white">
-      <LogOut className="w-4 h-4" />
-      <span>Logout</span>
+    <SidebarMenuButton
+      onClick={logout}
+      className="text-muted-foreground hover:text-foreground"
+    >
+      <LogOut />
+      <span>Log out</span>
     </SidebarMenuButton>
   )
 }
 
 export function AppSidebar() {
   const pathname = usePathname()
-  
+
   return (
-    <Sidebar className="bg-black border-zinc-800">
+    <Sidebar className="border-r border-sidebar-border">
       <SidebarHeader className="p-4">
-        <h1 className="font-bold text-white">Dock</h1>
+        <Link
+          href="/admin/dashboard"
+          className="flex items-center gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <Terminal className="size-5" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold">Dock</span>
+            <span className="text-xs text-muted-foreground">
+              Developer control plane
+            </span>
+          </div>
+        </Link>
       </SidebarHeader>
+
+      <SidebarSeparator />
 
       <SidebarContent>
         {navGroups.map((group) => (
           <SidebarGroup key={group.label}>
-            <SidebarGroupLabel className="text-zinc-500 text-xs">
-              {group.label}
-            </SidebarGroupLabel>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu className="">
+              <SidebarMenu>
                 {group.items.map((item) => {
-                  const isActive = pathname === item.url || pathname.startsWith(item.url + '/')
+                  const isActive =
+                    pathname === item.url ||
+                    pathname.startsWith(`${item.url}/`)
+
                   return (
                     <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton 
+                      <SidebarMenuButton
                         isActive={isActive}
-                        asChild
-                        className="data-[active=true]:bg-zinc-900 data-[active=true]:text-white text-zinc-400 "
+                        render={<Link href={item.url} />}
+                        className="data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground"
                       >
-                        <Link href={item.url} className="flex gap-2 flex-1 items-center">
-                          <item.icon className="w-4 h-4" />
-                          <span>{item.title}</span>
-                        </Link>
+                        <item.icon />
+                        <span>{item.title}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   )
@@ -116,7 +132,7 @@ export function AppSidebar() {
         ))}
       </SidebarContent>
 
-      <SidebarFooter className="p-2 border-t border-zinc-800">
+      <SidebarFooter className="border-t border-sidebar-border p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <LogoutButton />
