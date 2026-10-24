@@ -168,6 +168,7 @@ All variables are read from `.env.local` locally and from project settings on Ve
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | ✅ | Public | Supabase anon/publishable key used by the browser and SSR client. |
 | `SUPABASE_SERVICE_KEY` | ✅ | **Server only** | Supabase service role key. Bypasses RLS — never expose it to the client. |
 | `VC_API_TOKEN` | ✅ | **Server only** | Vercel personal access token used to list deployments. |
+| `GITHUB_PAT` | — | **Server only** | Optional GitHub personal access token used by the GitHub page. A token saved from **Manage token** (stored in the Env Vault) takes precedence. Needs `repo`, `workflow`, `read:org`, and `notifications` scopes. |
 | `CLOUDINARY_CLOUD_NAME` | ✅ | **Server only** | Cloudinary cloud name. |
 | `CLOUDINARY_API_KEY` | ✅ | **Server only** | Cloudinary API key. |
 | `CLOUDINARY_API_SECRET` | ✅ | **Server only** | Cloudinary API secret (server-side signed uploads/deletes). |
@@ -272,6 +273,12 @@ create policy "authenticated can read and write env_vaults"
 | `/` | Public | Login page. Authenticated users are redirected to the dashboard. |
 | `/admin/dashboard` | Auth | Deployment stats and recent deployments. |
 | `/admin/dashboard/deployments` | Auth | Full deployments table. |
+| `/admin/dashboard/github` | Auth | Redirects to the repositories page. |
+| `/admin/dashboard/github/repositories` | Auth | GitHub repositories you own or collaborate on. |
+| `/admin/dashboard/github/workflows` | Auth | GitHub Actions workflow runs per repository. |
+| `/admin/dashboard/github/issues` | Auth | Open issues involving your account. |
+| `/admin/dashboard/github/pulls` | Auth | Open pull requests involving your account. |
+| `/admin/dashboard/github/notifications` | Auth | GitHub notification inbox. |
 | `/admin/dashboard/uptime` | Auth | Add/remove monitors and view uptime. |
 | `/admin/dashboard/gallery` | Auth | Upload and manage Cloudinary images. |
 | `/admin/dashboard/envvault` | Auth | Manage secrets and import `.env` files. |
@@ -291,6 +298,9 @@ create policy "authenticated can read and write env_vaults"
 | `GET` | `/api/admin/users` | Admin | Lists Supabase Auth users. |
 | `POST` | `/api/admin/users` | Admin | Creates an auto-verified user (`{ email, password }`). |
 | `DELETE` | `/api/admin/users/:id` | Admin | Deletes a user. |
+| `GET` | `/api/github?resource=…` | Admin (`/api/github`) | Lists GitHub data. Resources: `status`, `repos`, `contributors&repo=owner/name`, `workflow-runs&repo=owner/name`, `issues`, `pulls`, `notifications`. |
+| `POST` | `/api/github/token` | Admin (`/api/github`) | Validates a PAT (`{ token }`) and stores it in the Env Vault. The token is never returned to the client. |
+| `DELETE` | `/api/github/token` | Admin (`/api/github`) | Removes the saved PAT from the Env Vault. |
 
 > **Auth column:** "Admin" = protected by `src/middleware.js` matcher rules. `Session` routes
 > verify the Supabase user inside the handler. `Cron` is intended for Vercel Cron.

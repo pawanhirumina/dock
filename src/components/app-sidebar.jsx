@@ -3,7 +3,11 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
+  Bell,
+  CircleDot,
   Clock,
+  GitBranch,
+  GitPullRequest,
   Image as ImageIcon,
   KeyRound,
   LayoutDashboard,
@@ -11,6 +15,7 @@ import {
   Rocket,
   Terminal,
   Users,
+  Workflow,
 } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
@@ -40,6 +45,16 @@ const navGroups = [
     items: [
       { title: "Deployments", url: "/admin/dashboard/deployments", icon: Rocket },
       { title: "Uptime", url: "/admin/dashboard/uptime", icon: Clock },
+    ],
+  },
+  {
+    label: "GitHub",
+    items: [
+      { title: "Repositories", url: "/admin/dashboard/github/repositories", icon: GitBranch },
+      { title: "Workflows", url: "/admin/dashboard/github/workflows", icon: Workflow },
+      { title: "Issues", url: "/admin/dashboard/github/issues", icon: CircleDot },
+      { title: "Pull requests", url: "/admin/dashboard/github/pulls", icon: GitPullRequest },
+      { title: "Notifications", url: "/admin/dashboard/github/notifications", icon: Bell },
     ],
   },
   {
