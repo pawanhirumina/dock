@@ -30,6 +30,7 @@ export async function middleware(request) {
   const isProtectedApi = path.startsWith('/api/admin') || 
                          path.startsWith('/api/delete') || 
                          path.startsWith('/api/upload') || 
+                         path.startsWith('/api/github') ||
                          path === '/api/deployments'
 
                          
@@ -54,6 +55,8 @@ export const config = {
     '/api/admin/:path*',
     '/api/delete',
     '/api/upload',
+    '/api/github',
+    '/api/github/:path*',
     '/api/deployments'
   ]
 }
