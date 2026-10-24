@@ -10,17 +10,15 @@ export async function createClient() {
       cookies: {
         getAll() { return cookieStore.getAll() },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            try {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
               cookieStore.set(name, value, options)
-            } catch (error) {
-              console.error(
-                '[supabase/server:setAll] failed to set cookie',
-                name,
-                error instanceof Error ? error.message : error
-              )
-            }
-          })
+            })
+          } catch {
+            // `setAll` was called from a Server Component, where cookies are
+            // read-only. This is safe to ignore because `src/middleware.js`
+            // refreshes the Supabase session on every matched request.
+          }
         },
       },
     }
