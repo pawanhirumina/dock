@@ -31,6 +31,7 @@ export async function middleware(request) {
                          path.startsWith('/api/delete') || 
                          path.startsWith('/api/upload') || 
                          path.startsWith('/api/github') ||
+                         path.startsWith('/api/monitors') ||
                          path === '/api/deployments'
 
                          
@@ -57,6 +58,7 @@ export const config = {
     '/api/upload',
     '/api/github',
     '/api/github/:path*',
+    '/api/monitors',
     '/api/deployments'
   ]
 }
