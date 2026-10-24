@@ -1,218 +1,560 @@
 "use client"
-import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+import { useEffect, useMemo, useState } from 'react'
+import {
+  Clock,
+  Eye,
+  EyeOff,
+  Mail,
+  Search,
+  ShieldCheck,
+  Trash2,
+  UserPlus,
+  Users,
+  X,
+} from 'lucide-react'
+
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Users, Clock, ShieldCheck, Trash2, Plus, X, Mail, Search } from "lucide-react"
-import { toast } from "sonner"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import ConfirmDialog from "@/components/ui/confirm-dialog"
+import { toast } from "@/components/ui/toast"
 
-function timeAgo(timestamp) {
-  const ms = typeof timestamp === 'string' ? new Date(timestamp).getTime() : timestamp
-  const s = Math.floor((Date.now() - ms) / 1000)
-  if (s < 60) return `${s}s ago`
-  if (s < 3600) return `${Math.floor(s/60)}m ago`
-  if (s < 86400) return `${Math.floor(s/3600)}h ago`
-  return `${Math.floor(s/86400)}d ago`
+function timeAgo(value) {
+  if (!value) return '—'
+  const ms = typeof value === 'string' ? new Date(value).getTime() : value
+  if (Number.isNaN(ms)) return '—'
+  const seconds = Math.floor((Date.now() - ms) / 1000)
+  if (seconds < 60) return `${seconds}s ago`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+  return `${Math.floor(seconds / 86400)}d ago`
 }
+
+function initials(email) {
+  const name = email?.split('@')[0] || 'U'
+  return name.slice(0, 2).toUpperCase()
+}
+
+function StatCard({ title, value, description, icon: Icon, loading }) {
+  return (
+    <Card size="sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="size-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent className="flex flex-col gap-1">
+        {loading ? (
+          <Skeleton className="h-7 w-12" />
+        ) : (
+          <span className="text-2xl font-semibold tabular-nums">{value}</span>
+        )}
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+const emptyForm = { email: '', password: '' }
 
 export default function UsersPage() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [search, setSearch] = useState('')
-  const [form, setForm] = useState({ email: '', password: '' })
+  const [form, setForm] = useState(emptyForm)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState(null)
 
   const fetchUsers = async () => {
-    setLoading(true)
     try {
       const res = await fetch('/api/admin/users')
       const data = await res.json()
-      if (data.users) setUsers(data.users)
-    } catch {
-      toast.error("Failed to fetch users")
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to load users')
+      }
+      setUsers(data.users || [])
+      setLoadError('')
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to load users'
+      setLoadError(message)
+      toast.add({
+        type: 'error',
+        title: 'Could not load users',
+        description: message,
+      })
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
-  useEffect(() => { fetchUsers() }, [])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async initial fetch
+    fetchUsers()
+  }, [])
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) return users
+    return users.filter((user) =>
+      user.email?.toLowerCase().includes(query),
+    )
+  }, [users, search])
+
+  const verifiedCount = users.filter(
+    (user) => user.email_confirmed_at || user.confirmed_at,
+  ).length
+  const pendingCount = users.length - verifiedCount
+
+  const closeDialog = () => {
+    setOpen(false)
+    setForm(emptyForm)
+    setShowPassword(false)
+  }
 
   const handleCreate = async () => {
-    if (!form.email || !form.password) return toast.error("Email and password required")
-    if (form.password.length < 6) return toast.error("Password min 6 chars")
+    if (!form.email || !form.password) {
+      toast.add({
+        type: 'error',
+        title: 'Missing fields',
+        description: 'Email and password are required.',
+      })
+      return
+    }
+    if (form.password.length < 6) {
+      toast.add({
+        type: 'error',
+        title: 'Password too short',
+        description: 'Use at least 6 characters.',
+      })
+      return
+    }
+
     setSaving(true)
     try {
       const res = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(form),
       })
       const data = await res.json()
-      if (!res.ok) toast.error(data.error || "Create failed")
-      else {
-        toast.success(`User ${form.email} created & auto-verified`)
-        setForm({ email: '', password: '' })
-        setOpen(false)
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Create failed')
+      }
+
+      if (data.user) {
+        setUsers((prev) =>
+          prev.some((user) => user.id === data.user.id)
+            ? prev
+            : [data.user, ...prev],
+        )
+      } else {
         fetchUsers()
       }
-    } catch {
-      toast.error("Network error")
+      toast.add({
+        type: 'success',
+        title: 'User created',
+        description: `${form.email} is verified and can sign in.`,
+      })
+      closeDialog()
+    } catch (error) {
+      toast.add({
+        type: 'error',
+        title: 'Could not create user',
+        description:
+          error instanceof Error ? error.message : 'Please try again.',
+      })
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
-  const handleDelete = (u) => {
-    setUserToDelete(u)
+  const handleDelete = (user) => {
+    setUserToDelete(user)
     setConfirmOpen(true)
   }
 
   const confirmDelete = async () => {
     if (!userToDelete) return
-    const res = await fetch(`/api/admin/users/${userToDelete.id}`, { method: 'DELETE' })
-    if (res.ok) {
-      toast.success("Deleted")
-      setUsers(prev => prev.filter(x => x.id !== userToDelete.id))
-    } else toast.error("Delete failed")
+
+    const res = await fetch(`/api/admin/users/${userToDelete.id}`, {
+      method: 'DELETE',
+    })
+    const data = await res.json().catch(() => ({}))
+
+    if (!res.ok) {
+      toast.add({
+        type: 'error',
+        title: 'Delete failed',
+        description: data?.error || 'Please try again.',
+      })
+    } else {
+      setUsers((prev) => prev.filter((user) => user.id !== userToDelete.id))
+      toast.add({
+        type: 'success',
+        title: 'User deleted',
+        description: `${userToDelete.email} no longer has access.`,
+      })
+    }
     setConfirmOpen(false)
     setUserToDelete(null)
   }
 
-  const filtered = users.filter(u => 
-    u.email?.toLowerCase().includes(search.toLowerCase())
-  )
-
-  const verifiedCount = users.filter(u => u.email_confirmed_at || u.confirmed_at).length
-
   return (
-    <TooltipProvider>
-      <div className="space-y-6 p-6 relative">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Users</h1>
-          <Button variant="outline" onClick={() => setOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" /> Add User
-          </Button>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
+          <p className="max-w-prose text-sm text-muted-foreground">
+            Manage who can sign in to Dock. New users are verified
+            automatically.
+          </p>
         </div>
+        <Button onClick={() => setOpen(true)}>
+          <UserPlus data-icon="inline-start" />
+          Add user
+        </Button>
+      </div>
 
-        {open && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-background border rounded-lg w-full max-w-md p-6 space-y-4 shadow-lg">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-semibold">Create User</h2>
-                <Button variant="ghost" size="icon" onClick={() => setOpen(false)}><X className="w-4 h-4" /></Button>
-              </div>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Email *</Label>
-                  <Input type="email" placeholder="user@example.com" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Password *</Label>
-                  <Input type="password" placeholder="••••••••" value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
-                  <p className="text-xs text-muted-foreground">User will be auto-verified and can login immediately.</p>
-                </div>
-                <Button onClick={handleCreate} disabled={saving} className="w-full">
-                  {saving ? 'Creating...' : 'Create & Verify'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+      {loadError && (
+        <Alert variant="destructive">
+          <Mail />
+          <AlertTitle>Could not load users</AlertTitle>
+          <AlertDescription>{loadError}</AlertDescription>
+        </Alert>
+      )}
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{users.length}</div>
-              <p className="text-xs text-muted-foreground">Supabase Auth</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Verified</CardTitle>
-              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{verifiedCount}</div>
-              <p className="text-xs text-muted-foreground">{users.length - verifiedCount} pending</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Filtered</CardTitle>
-              <Search className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{filtered.length}</div>
-              <p className="text-xs text-muted-foreground">matching search</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by email..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 max-w-[300px]" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-sm text-muted-foreground py-8 text-center">Loading users...</div>
-            ) : filtered.length === 0 ? (
-              <div className="text-sm text-muted-foreground py-8 text-center">No users found</div>
-            ) : (
-              <div className="space-y-2">
-                {filtered.map((u) => (
-                  <div key={u.id} className="flex items-center justify-between p-3  rounded-lg hover:bg-muted/50 transition">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
-                        <Mail className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{u.email}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          {u.created_at ? timeAgo(u.created_at) : '—'}
-                          {u.email_confirmed_at ? (
-                            <Badge variant="secondary" className="text- h-4">verified</Badge>
-                          ) : (
-                            <Badge variant="outline" className="text- h-4">unverified</Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <Tooltip>
-                      <TooltipTrigger className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(u)}>
-                        <Trash2 className="h-4 w-4" />
-                      </TooltipTrigger>
-                      <TooltipContent>Delete user</TooltipContent>
-                    </Tooltip>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <ConfirmDialog
-          open={confirmOpen}
-          onOpenChange={setConfirmOpen}
-          title="Delete user?"
-          description={`Are you sure you want to delete ${userToDelete?.email}? This cannot be undone.`}
-          onConfirm={confirmDelete}
-          confirmText="Delete"
-          variant="destructive"
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          title="Total users"
+          value={users.length}
+          description="Supabase Auth accounts"
+          icon={Users}
+          loading={loading}
+        />
+        <StatCard
+          title="Verified"
+          value={verifiedCount}
+          description="Can sign in right away"
+          icon={ShieldCheck}
+          loading={loading}
+        />
+        <StatCard
+          title="Pending"
+          value={pendingCount}
+          description="Awaiting verification"
+          icon={Clock}
+          loading={loading}
         />
       </div>
-    </TooltipProvider>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-1">
+            <CardTitle>Accounts</CardTitle>
+            <CardDescription>
+              {search
+                ? `${filtered.length} of ${users.length} users`
+                : `${users.length} ${users.length === 1 ? 'user' : 'users'} with access`}
+            </CardDescription>
+          </div>
+          <InputGroup className="w-full sm:w-64">
+            <InputGroupAddon>
+              <Search />
+            </InputGroupAddon>
+            <InputGroupInput
+              placeholder="Search by email..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              aria-label="Search users"
+            />
+            {search && (
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  size="icon-xs"
+                  aria-label="Clear search"
+                  onClick={() => setSearch('')}
+                >
+                  <X />
+                </InputGroupButton>
+              </InputGroupAddon>
+            )}
+          </InputGroup>
+        </CardHeader>
+
+        <CardContent className="p-0">
+          {loading ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-4">User</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="pr-4">
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="pl-4">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="size-8 rounded-full" />
+                        <Skeleton className="h-4 w-44" />
+                      </div>
+                    </TableCell>
+                    <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell className="pr-4"><Skeleton className="ml-auto size-8" /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : filtered.length === 0 ? (
+            <div className="p-6">
+              <Empty className="border border-dashed">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <Users />
+                  </EmptyMedia>
+                  <EmptyTitle>
+                    {search ? 'No matching users' : 'No users yet'}
+                  </EmptyTitle>
+                  <EmptyDescription>
+                    {search
+                      ? `Nothing matches “${search}”. Try a different search.`
+                      : 'Create an account to get started with Dock.'}
+                  </EmptyDescription>
+                </EmptyHeader>
+                {!search && (
+                  <EmptyContent>
+                    <Button variant="outline" onClick={() => setOpen(true)}>
+                      <UserPlus data-icon="inline-start" />
+                      Add your first user
+                    </Button>
+                  </EmptyContent>
+                )}
+              </Empty>
+            </div>
+          ) : (
+            <Table>
+              <TableCaption className="sr-only">
+                Users with access to Dock
+              </TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-4">User</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="pr-4">
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((user) => {
+                  const verified = Boolean(
+                    user.email_confirmed_at || user.confirmed_at,
+                  )
+
+                  return (
+                    <TableRow key={user.id}>
+                      <TableCell className="pl-4">
+                        <div className="flex items-center gap-3">
+                          <Avatar>
+                            <AvatarFallback>{initials(user.email)}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex min-w-0 flex-col gap-0.5">
+                            <span className="truncate text-sm font-medium">
+                              {user.email}
+                            </span>
+                            <span className="truncate text-xs text-muted-foreground">
+                              {user.id}
+                            </span>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={verified ? 'secondary' : 'outline'}>
+                          {verified ? 'Verified' : 'Unverified'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className="text-xs text-muted-foreground"
+                          title={
+                            user.created_at
+                              ? new Date(user.created_at).toLocaleString()
+                              : undefined
+                          }
+                        >
+                          {timeAgo(user.created_at)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="pr-4">
+                        <div className="flex items-center justify-end">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Delete ${user.email}`}
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDelete(user)}
+                          >
+                            <Trash2 />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) setOpen(true)
+          else closeDialog()
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add user</DialogTitle>
+            <DialogDescription>
+              Create a verified Supabase account that can sign in immediately.
+            </DialogDescription>
+          </DialogHeader>
+
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="user-email">Email</FieldLabel>
+              <Input
+                id="user-email"
+                type="email"
+                placeholder="user@example.com"
+                autoComplete="off"
+                value={form.email}
+                onChange={(event) =>
+                  setForm({ ...form, email: event.target.value })
+                }
+              />
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="user-password">Password</FieldLabel>
+              <InputGroup>
+                <InputGroupInput
+                  id="user-password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                  value={form.password}
+                  onChange={(event) =>
+                    setForm({ ...form, password: event.target.value })
+                  }
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    size="icon-xs"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowPassword((visible) => !visible)}
+                  >
+                    {showPassword ? <EyeOff /> : <Eye />}
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
+              <FieldDescription>
+                At least 6 characters. The account is auto-verified.
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreate} disabled={saving}>
+              {saving ? (
+                <>
+                  <Spinner data-icon="inline-start" />
+                  Creating...
+                </>
+              ) : (
+                'Create user'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Delete user?"
+        description={`Delete ${userToDelete?.email}? They will lose access immediately and this cannot be undone.`}
+        onConfirm={confirmDelete}
+        confirmText="Delete"
+        loadingText="Deleting..."
+        variant="destructive"
+      />
+    </div>
   )
 }

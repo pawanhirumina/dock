@@ -1,4 +1,5 @@
 import "./globals.css";
+import { Toaster } from "@/components/ui/toast";
 
 export const metadata = {
   title: "Dock",
@@ -10,6 +11,7 @@ export default function RootLayout({ children }) {
     <html lang="en" className="dark">
       <body>
         {children}
+        <Toaster />
       </body>
     </html>
   );
