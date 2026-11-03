@@ -43,7 +43,7 @@ export async function middleware(request) {
   }
 
   if (user && isLoginPage) {
-    return NextResponse.redirect(new URL('/admin/dashboard', request.url))
+    return NextResponse.redirect(new URL('/admin', request.url))
   }
 
   return supabaseResponse

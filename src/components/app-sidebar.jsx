@@ -37,37 +37,37 @@ const navGroups = [
   {
     label: "Overview",
     items: [
-      { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
+      { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
     ],
   },
   {
     label: "Deployments",
     items: [
-      { title: "Deployments", url: "/admin/dashboard/deployments", icon: Rocket },
-      { title: "Uptime", url: "/admin/dashboard/uptime", icon: Clock },
+      { title: "Deployments", url: "/admin/deployments", icon: Rocket },
+      { title: "Uptime", url: "/admin/uptime", icon: Clock },
     ],
   },
   {
     label: "GitHub",
     items: [
-      { title: "Repositories", url: "/admin/dashboard/github/repositories", icon: GitBranch },
-      { title: "Workflows", url: "/admin/dashboard/github/workflows", icon: Workflow },
-      { title: "Issues", url: "/admin/dashboard/github/issues", icon: CircleDot },
-      { title: "Pull requests", url: "/admin/dashboard/github/pulls", icon: GitPullRequest },
-      { title: "Notifications", url: "/admin/dashboard/github/notifications", icon: Bell },
+      { title: "Repositories", url: "/admin/github/repositories", icon: GitBranch },
+      { title: "Workflows", url: "/admin/github/workflows", icon: Workflow },
+      { title: "Issues", url: "/admin/github/issues", icon: CircleDot },
+      { title: "Pull requests", url: "/admin/github/pulls", icon: GitPullRequest },
+      { title: "Notifications", url: "/admin/github/notifications", icon: Bell },
     ],
   },
   {
     label: "Hosting & Vault",
     items: [
-      { title: "Gallery", url: "/admin/dashboard/gallery", icon: ImageIcon },
-      { title: "Env Vault", url: "/admin/dashboard/envvault", icon: KeyRound },
+      { title: "Gallery", url: "/admin/gallery", icon: ImageIcon },
+      { title: "Env Vault", url: "/admin/envvault", icon: KeyRound },
     ],
   },
   {
     label: "Management",
     items: [
-      { title: "Users", url: "/admin/dashboard/users", icon: Users },
+      { title: "Users", url: "/admin/users", icon: Users },
     ],
   },
 ]
@@ -100,7 +100,7 @@ export function AppSidebar() {
     <Sidebar className="border-r border-sidebar-border">
       <SidebarHeader className="p-4">
         <Link
-          href="/admin/dashboard"
+          href="/admin"
           className="flex items-center gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
