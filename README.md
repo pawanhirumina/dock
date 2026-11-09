@@ -502,11 +502,3 @@ Vercel, GitHub, Supabase, or Cloudinary. All trademarks belong to their respecti
 
 You are responsible for the security and configuration of your own deployment, including API
 tokens, database policies, and access control.
-
----
-
-## License
-
-No license has been added to this repository yet. Until a license is provided, all rights are
-reserved. If you would like to use Dock in your own project, please open an issue to discuss
-licensing.
